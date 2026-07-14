@@ -108,6 +108,10 @@ confirms, then the approved items are integrated via the 7-step process.
      dynamics, time-sensitive action items that may have expired).
    - **Correctly removed**: Stale, redundant, or superseded (outdated contact info,
      facts later corrected, content already covered elsewhere).
+   - **User-stated convention immunity**: Any item that is a user-stated convention /
+     preference (see Step 3 P0) is ALWAYS "Worth re-adding" — never place it in
+     "Marginal" or "Correctly removed", even if its source daily log was distilled away
+     (>30 days) or it shows no recent activity. It is self-anchored in MEMORY.md.
 3. **Present findings**: Output a structured table (item / value assessment / source
    log / recommended action). Do NOT modify files until user confirms.
 4. **Execute**: After user confirmation, integrate approved items into MEMORY.md via
@@ -141,7 +145,10 @@ when condensing lower tiers.**
 
 - **P0 — Never drop**: Red lines (title/role rules, confidentiality, communication
   style), conventions (file organization, reporting format, naming), hard compliance
-  constraints. Persist for the project's lifetime.
+  constraints. Persist for the project's lifetime. **Includes user-stated conventions /
+  preferences** — a collaboration or output-format rule the user set directly, even when
+  NOT derived from any work record. These are P0 regardless of recency: never demote
+  them for "no recent activity" or "no work-record trace".
 - **P1 — Structural background**: Positioning, architecture, compliance blind spots,
   financing, entity structure research, operational models, investor/funnel playbooks,
   competitive positioning. For software: architecture decisions, tech debt inventory,
@@ -202,6 +209,25 @@ For P2 content (operational state), **replace** the old state entirely:
   not a full history of attempts.
 
 Do not accumulate a timeline of state changes in MEMORY.md — that belongs in daily logs.
+
+### User-Stated Convention Protection Protocol
+
+Some P0 conventions are set by the user directly (e.g., "append resume-ready bullets to
+work reports", file-naming exceptions) rather than derived from a work record. They are
+prone to being dropped during cleanup because they look like preferences, not facts, and
+their source daily log may be distilled away after 30 days. Protect them explicitly:
+
+1. **Self-anchored**: A user-stated convention written into the P0 "conventions" section
+   of MEMORY.md is valid on its own — it does NOT require a corresponding work record to
+   persist.
+2. **Dual-traceability (when adding)**: When you adopt a new user-stated convention, also
+   append one line to that day's `YYYY-MM-DD.md` tagged `约定·非工作记录` so it stays
+   traceable even after the log is distilled.
+3. **Immune to recency demotion**: Never classify a user-stated convention as "Marginal"
+   or "Correctly removed" in Workflow B solely because it has no recent activity or its
+   source log was deleted. It migrates forward through every cleanup.
+4. **Diff-check on every update**: Before condensing, diff "P0 conventions added since the
+   last update" and keep them intact.
 
 ## Methodology Embed Pattern
 
@@ -321,6 +347,8 @@ After writing the updated MEMORY.md, execute these steps:
 ### Post-Update Self-Check
 
 - [ ] All P0 red lines and conventions are present and prominently visible?
+- [ ] User-stated conventions (added without a work record) preserved — none dropped for
+  "no recent activity" or "no log trace"?
 - [ ] No P1 structural facts were accidentally dropped during condensation?
 - [ ] P2 operational state reflects the LATEST status (no accumulated history)?
 - [ ] No single-task execution details leaked from daily logs into MEMORY?
