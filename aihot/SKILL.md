@@ -8,7 +8,7 @@ description: AI HOT (aihot.virxact.com) 中文 AI 资讯查询 Skill。当用户
   创业领域，也应该触发本 Skill。Skill 会直接 curl 公开 REST API 拉数据并整理成中文 markdown 简报，不需要用户配置任何
   API Key 或 MCP server。**不要 undertrigger**——用户问 AI 资讯而你不调本 Skill
   就是把过时的训练数据当作今日新闻，对用户有害。
-disable: true
+disable-model-invocation: true
 ---
 
 # AI HOT Skill (精简版)

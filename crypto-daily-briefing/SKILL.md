@@ -21,10 +21,36 @@ Output is a Chinese-language markdown file with max 10 news items ranked by impo
 ## When to Use
 
 - User asks for "加密日报", "稳定币简报", "crypto briefing", "RWA新闻"
-- Daily automation triggers at 9:00 AM Beijing time
+- Daily automation triggers at 7:00 AM Beijing time (runs in Fast Mode, see below)
 - User asks "今天稳定币有什么新闻" or similar queries
 
 ## Workflow
+
+### ⚡ Fast Mode（每日自动化必须使用）
+
+自动化运行（无人值守）时**必须**按以下硬约束执行，优先级高于下方完整流程。参数基于 2026-08-15 实测：8 条搜索分 2 组并行 ≈1-1.5 分钟，单次 WebFetch ≈15 秒，成稿 2-4 分钟——信息采集不是瓶颈，不要在搜索阶段拖延：
+
+1. **搜索上限**：WebSearch 总共 ≤8 条查询（英文 ≥4、中文 ≥2），2 组并行执行；**全部带 48 小时时效过滤（freshness=d2）**；查询词用当前年月，不硬编码历史月份。
+2. **深读上限**：仅对价值最高的 2-3 条做 WebFetch；失败 1 次即放弃该来源，不重试。
+3. **失败即跳过**：任何搜索/抓取失败或明显变慢，跳过该主题继续，绝不阻塞等待。宁可条目少也要完成成稿。
+4. **时间盒**：全程目标 ≤10 分钟；**第 8 分钟起不得发起新搜索/抓取**；第 12 分钟无论进度立即用已有材料成稿收尾。
+5. **产出双通道**：写入简报文件（见 Output Specifications 的 Location）并在回复中完整输出正文。
+6. **跨查询去重**：同一事件多源报道只保留一条，取最高质量信源；不同查询的重叠结果合并。
+7. **信源分层**：一手（官方公告/监管文件/SEC/交易所通函/官方新闻稿 PRNewswire-GlobeNewswire）＞行业媒体（CoinDesk、The Block、PANews、MarsBit、中国基金报、清华金融评论、国际金融报、新华财经 cnfin、同花顺）＞弃用（行情预测文、榜单式 listicle、无名聚合站）。每条入选必须带 URL+日期，无法核实舍弃。
+8. **连续性与跨日筛查**（2026-08-17 Tom 确认增设三级规则）：开工先读近两日简报文件（缺失则只读存在的），对候选条目三级处理：
+   - **A 纯重复剔除**：与近两日条目为同一事实、无任何新信息 → 不入选、不计数；
+   - **B 事态进展保留**：同一事件但有实质增量（新数据/新进展/概率变化）→ 入选并标注【事态进展】，只写增量不重复旧事实；
+   - **C 主题重复压缩**：同主题的新数据点或"模式确认"型新闻（如昨日报过 A 公司白银金库、今日 B 公司白银第二例）→ 不占独立条目，压缩为单行进文末【跟踪更新】区块（一行=主题+关键新数字+信源+日期）。
+   - 头部统计行注明"共 N 条（另 M 条与近两日主题重复，压缩为跟踪更新）"。判断口径：**跟事件不跟主体**——同主体（如 World Liberty）的新事件（OCC 批准 vs DeFi 清算风险）不算重复。
+9. **聚合站信源降级**（2026-08-16 审查新增）：BigGo、Cryptonite、Discernion、approx.org 等聚合/二次搬运站**只能当线索，不得作为最终引用信源**——若其援引了一手源（GlobeNewswire/官方公告/OCC 文件/tether.io）或一线媒体（Reuters/CoinDesk/The Block），必须溯源并引用原始 URL；无法溯源则该条降级或舍弃。
+10. **数字自洽检查**（2026-08-16 审查新增）：同一条目内的数字不得互相矛盾（如审计口径与季报口径混用却不加说明）；关键数字（金额/比例/排名）需一手源或两个独立来源支撑，仅有单一聚合站支撑的数字不写。
+
+**Fast Mode 实测查询组（2026-08-15 验证有效，均带 freshness=d2）**：
+- 组 1（并行）：① `stablecoin regulation news` ② `RWA tokenization real world assets news` ③ `USDT USDC stablecoin market cap supply` ④ `stablecoin launch announcement new`
+- 组 2（并行）：⑤ `稳定币 监管 牌照 最新消息` ⑥ `RWA 代币化 真实世界资产 新闻` ⑦ `Ethena USDe Ondo Finance tokenized treasury` ⑧ `Circle Tether BlackRock digital assets news`
+- 当日有重大突发事件时，可将 1-2 条替换为事件关键词。实测该组可命中近 48h 全部主线新闻（如 HKDAP 发行、RWA 市值 $38B、Circle Arc 主网时间表）。
+
+> 历史教训（2026-07-30 ~ 08-15，17 次自动化运行仅 3 次成功）：完整流程（16 查询 + 8 抓取）经常运行 90 分钟以上被超时终止；请求被取消(499)与本地代理抖动(502/ECONNRESET)为另两大失败源。已查明：搜索/抓取均在云端执行、不经本机，本机仅承载与后端的 API 通道（规则模式下走 DIRECT）；快速模式把对本地网络抖动的暴露窗口从 90 分钟缩至 ~10 分钟。
 
 ### Step 1: Collect News via WebSearch
 
@@ -34,25 +60,27 @@ No crypto-specific API is available. Use WebSearch (topic=news) in 4 parallel gr
 1. "USDT USDC stablecoin regulation license legislation"
 2. "GENIUS Act stablecoin bill Congress progress"
 3. "稳定币 香港 新加坡 监管 牌照 最新进展"
-4. "MiCA stablecoin EU regulation compliance June 2026"
+4. "MiCA stablecoin EU regulation compliance 最新进展"
 
 **Group 2 — RWA Tokenization (4 queries)**:
-5. "BlackRock BUIDL tokenized treasury fund update June 2026"
+5. "BlackRock BUIDL tokenized treasury fund update"
 6. "Ondo Finance RWA tokenization real world assets"
 7. "Securitize tokenized assets real world assets 2026"
-8. "真实世界资产 代币化 美债 RWA June 2026"
+8. "真实世界资产 代币化 美债 RWA 最新"
 
 **Group 3 — Protocol & Market Data (6 queries)**:
 9. "Ethena USDe stablecoin yield update news"
 10. "MakerDAO Sky stablecoin USDS Endgame"
-11. "stablecoin market cap USDT USDC supply change June 2026"
-12. "tokenized treasuries on-chain T-Bill market size 2026"
+11. "stablecoin market cap USDT USDC supply change"
+12. "tokenized treasuries on-chain T-Bill market size"
 13. "new stablecoin launch announce 2026 consortium"
 14. "新稳定币 发布 推出 上线 consortium"
 
 **Group 4 — Chinese Sources (2 queries)**:
-13. "财新 稳定币 加密货币 监管 RWA"
-14. "21世纪经济报道 数字资产 代币化"
+15. "财新 稳定币 加密货币 监管 RWA"
+16. "21世纪经济报道 数字资产 代币化"
+
+> 注：以上查询词不要硬编码月份/年份，运行时用当前年月替代"最新进展/最新"。
 
 ### Step 2: Deep Dive
 
@@ -88,7 +116,7 @@ Rules:
 
 ### Step 4: Format Output
 
-Save to `briefings/crypto/YYYY-MM-DD.md`:
+Save to `/Users/bittom/Desktop/OnlineInvest/Web3/每日简报/YYYY-MM-DD.md`（当日日期）:
 
 ```markdown
 # 加密每日简报 — YYYY年MM月DD日（周X）
@@ -125,13 +153,17 @@ End with 【今日观察】. Instead of a single collapsed "dominant narrative",
 
 Then keep a short **【值得关注】** watchlist. Stay concise — this is a 3-minute morning read, not an essay.
 
+### Step 6: 深挖衔接（2026-08-16 新增）
+
+当日条目中如出现"单一事件信息量大、涉及陌生主体、值得展开"的（如大额交易/合作/监管行动），可在该条目末尾加一行 `【值得深挖】`标记（只标记，不在简报内展开——简报有时间盒纪律）。用户后续说"深挖第 N 条"时，由 **news-deep-dive skill** 承接（深挖对象=事件+各方主体，窄口径，见该 skill 第零步定位声明）。自动化运行时**只标记不自动触发深挖**。
+
 ## Output Specifications
 
 - **Language**: Chinese with key English terms (T-Bill, NAV, mint/redeem, USDT, USDC, BUIDL, TVL)
 - **Length**: ~3-minute morning read, concise
 - **Tone**: Professional, direct, factual — no research report expansion
 - **Color convention** (Chinese market): 🟢 bullish, 🔴 bearish, 🟡 neutral
-- **Location**: `/Users/bittom/Desktop/DailyNews/briefings/crypto/YYYY-MM-DD.md`
+- **Location**: `/Users/bittom/Desktop/OnlineInvest/Web3/每日简报/YYYY-MM-DD.md`（2026-08-17 项目重组：推特Web3/ → Web3/；自动化 cwds 绑定该工作区；更早路径 `/Users/bittom/Desktop/DailyNews/` 已废弃——该目录不存在导致写入失败）
 
 ## Verbalized Sampling (VS) 使用约定
 
