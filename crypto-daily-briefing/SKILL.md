@@ -30,7 +30,12 @@ Output is a Chinese-language markdown file with max 10 news items ranked by impo
 
 自动化运行（无人值守）时**必须**按以下硬约束执行，优先级高于下方完整流程。参数基于 2026-08-15 实测：8 条搜索分 2 组并行 ≈1-1.5 分钟，单次 WebFetch ≈15 秒，成稿 2-4 分钟——信息采集不是瓶颈，不要在搜索阶段拖延：
 
-1. **搜索上限**：WebSearch 总共 ≤8 条查询（英文 ≥4、中文 ≥2），2 组并行执行；**全部带 48 小时时效过滤（freshness=d2）**；查询词用当前年月，不硬编码历史月份。
+1. **指定信源模式（2026-08-23 Tom 确认为每日主通道）**：直接抓取三家头部站，只筛 **RWA + 稳定币** 相关新闻：
+   - **CoinDesk 列表页**：WebFetch `https://www.coindesk.com/latest-crypto-news`（实测可用，返回标题+相对时间戳+摘要+链接）
+   - **Cointelegraph RSS**：WebFetch `https://cointelegraph.com/rss`（实测可用，结构化 pubDate+干净链接）
+   - **Odaily 星球日报首页**：WebFetch `https://www.odaily.news/`（实测可用，快讯流带精确时间戳；站点自带 RWA/稳定币标签可作补充检索页）
+   - 三站并行抓取（≈45 秒）；每站只保留 RWA/稳定币/代币化/监管相关条目，纯行情与 meme 类舍弃。
+2. **搜索补漏上限**：WebSearch 仅用于补漏 ≤3 条查询（freshness=d2），覆盖三站可能遗漏的监管文件/官方公告；不再要求英文≥4、中文≥2 的数量结构。
 2. **深读上限**：仅对价值最高的 2-3 条做 WebFetch；失败 1 次即放弃该来源，不重试。
 3. **失败即跳过**：任何搜索/抓取失败或明显变慢，跳过该主题继续，绝不阻塞等待。宁可条目少也要完成成稿。
 4. **时间盒**：全程目标 ≤10 分钟；**第 8 分钟起不得发起新搜索/抓取**；第 12 分钟无论进度立即用已有材料成稿收尾。
@@ -45,10 +50,9 @@ Output is a Chinese-language markdown file with max 10 news items ranked by impo
 9. **聚合站信源降级**（2026-08-16 审查新增）：BigGo、Cryptonite、Discernion、approx.org 等聚合/二次搬运站**只能当线索，不得作为最终引用信源**——若其援引了一手源（GlobeNewswire/官方公告/OCC 文件/tether.io）或一线媒体（Reuters/CoinDesk/The Block），必须溯源并引用原始 URL；无法溯源则该条降级或舍弃。
 10. **数字自洽检查**（2026-08-16 审查新增）：同一条目内的数字不得互相矛盾（如审计口径与季报口径混用却不加说明）；关键数字（金额/比例/排名）需一手源或两个独立来源支撑，仅有单一聚合站支撑的数字不写。
 
-**Fast Mode 实测查询组（2026-08-15 验证有效，均带 freshness=d2）**：
-- 组 1（并行）：① `stablecoin regulation news` ② `RWA tokenization real world assets news` ③ `USDT USDC stablecoin market cap supply` ④ `stablecoin launch announcement new`
-- 组 2（并行）：⑤ `稳定币 监管 牌照 最新消息` ⑥ `RWA 代币化 真实世界资产 新闻` ⑦ `Ethena USDe Ondo Finance tokenized treasury` ⑧ `Circle Tether BlackRock digital assets news`
-- 当日有重大突发事件时，可将 1-2 条替换为事件关键词。实测该组可命中近 48h 全部主线新闻（如 HKDAP 发行、RWA 市值 $38B、Circle Arc 主网时间表）。
+**搜索补漏备选查询组（2026-08-15 验证有效；08-23 起降级为补漏用，不再作为主采集通道）**：
+- 备选：① `stablecoin regulation news` ② `RWA tokenization real world assets news` ③ `稳定币 监管 牌照 最新消息` ④ `RWA 代币化 真实世界资产 新闻`
+- 补漏时按需选 ≤3 条、均带 freshness=d2、查询词用当前年月；当日重大突发事件可将 1 条替换为事件关键词。
 
 > 历史教训（2026-07-30 ~ 08-15，17 次自动化运行仅 3 次成功）：完整流程（16 查询 + 8 抓取）经常运行 90 分钟以上被超时终止；请求被取消(499)与本地代理抖动(502/ECONNRESET)为另两大失败源。已查明：搜索/抓取均在云端执行、不经本机，本机仅承载与后端的 API 通道（规则模式下走 DIRECT）；快速模式把对本地网络抖动的暴露窗口从 90 分钟缩至 ~10 分钟。
 
@@ -116,7 +120,7 @@ Rules:
 
 ### Step 4: Format Output
 
-Save to `/Users/bittom/Desktop/OnlineInvest/Web3/每日简报/YYYY-MM-DD.md`（当日日期）:
+Save to `/Users/bittom/Desktop/OnlineInvest/Web3/每日简报/YYMMDD.md`（六位日期，如 `260823.md`——2026-08-23 Tom 更新命名规则）:
 
 ```markdown
 # 加密每日简报 — YYYY年MM月DD日（周X）
@@ -163,7 +167,7 @@ Then keep a short **【值得关注】** watchlist. Stay concise — this is a 3
 - **Length**: ~3-minute morning read, concise
 - **Tone**: Professional, direct, factual — no research report expansion
 - **Color convention** (Chinese market): 🟢 bullish, 🔴 bearish, 🟡 neutral
-- **Location**: `/Users/bittom/Desktop/OnlineInvest/Web3/每日简报/YYYY-MM-DD.md`（2026-08-17 项目重组：推特Web3/ → Web3/；自动化 cwds 绑定该工作区；更早路径 `/Users/bittom/Desktop/DailyNews/` 已废弃——该目录不存在导致写入失败）
+- **Location**: `/Users/bittom/Desktop/OnlineInvest/Web3/每日简报/YYMMDD.md`（**2026-08-23 Tom 更新：文件名日期用六位 `YYMMDD` 格式，如 `260823.md`；深挖报告同目录、命名 `YYMMDD事件短名.md`，不用中括号、日期与中文标题间不空格**。2026-08-17 项目重组：推特Web3/ → Web3/；自动化 cwds 绑定该工作区；更早路径 `/Users/bittom/Desktop/DailyNews/` 已废弃——该目录不存在导致写入失败）
 
 ## Verbalized Sampling (VS) 使用约定
 

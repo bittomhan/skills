@@ -34,3 +34,10 @@ description: 把简陋简历（PDF/docx）改写为 billryan resume LaTeX 模板
 1. 提取源 PDF 文本：`/Users/bittom/.workbuddy/binaries/python/envs/default/bin/python` + pymupdf（fitz），逐页 `page.get_text()`。
 2. 按结构模板写 .tex（中文/英文各一份，按用户要求）。
 3. `present_files` 交付；回复中简述改写要点 + 待核实清单。
+
+## 链接同步（2026-08-21 经验，改写已有 .tex 时必用）
+- 当源是**已含大量 `\href` 的 .tex**（如 TomHan.tex 有 161 条 notion/长 URL）时，**禁止手抄链接 ID**——32 位 ID 手抄必错位。标准做法：
+  1. 先正则提取全部 `\href{...}` 到编号清单（H01…Hnn）作真源；
+  2. 新 tex 中链接处写 `{{Hxx}}` 占位符；
+  3. 脚本按 token 回填并校验：tokens used / missing / unreplaced 全零 + CJK 残留扫描（英文版应为空）。
+- 源 tex 中被注释掉的内容块不纳入新版（提取真源时注意区分注释行）。

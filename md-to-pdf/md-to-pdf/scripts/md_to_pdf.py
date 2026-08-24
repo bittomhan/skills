@@ -107,7 +107,35 @@ def md_to_pdf(input_path, output_path=None):
 
         return _re.sub(r'<table>.*?</table>', make_colgroup, html, flags=_re.DOTALL)
 
+    def _fix_h1_breaks(html):
+        """Skip the forced page break before an H1 when everything between
+        it and the previous H1 is only meta content (blockquote / hr).
+
+        Root cause fixed 2026-08-20: a blanket `page-break-before: always`
+        on every H1 leaves page 1 almost empty for the common
+        "title H1 + short meta quote + first section H1" document pattern
+        (same symptom as the 2026-08-14 merged-report cover-page issue).
+        Rule: keep the break only if real content (paragraph / list / table /
+        heading) appears between the two H1s.
+        """
+        parts = _re.split(r'(<h1\b[^>]*>.*?</h1>)', html, flags=_re.DOTALL)
+        out = []
+        for i, seg in enumerate(parts):
+            if seg.startswith('<h1') and i > 1:
+                # gap between the PREVIOUS h1 and this h1 sits at parts[i-1]
+                prev = parts[i - 1]
+                meta = _re.sub(r'<blockquote\b.*?</blockquote>', '', prev,
+                               flags=_re.DOTALL)
+                meta = _re.sub(r'<hr\s*/?>', '', meta)
+                meta = _re.sub(r'\s+', '', meta)
+                if not meta:
+                    seg = _re.sub(r'<h1\b', '<h1 class="no-break"', seg,
+                                  count=1)
+            out.append(seg)
+        return ''.join(out)
+
     html_body = _add_colgroups(html_body)
+    html_body = _fix_h1_breaks(html_body)
     
     # CSS for Chinese PDF styling
     css = """
@@ -141,6 +169,13 @@ def md_to_pdf(input_path, output_path=None):
     }
     
     h1:first-of-type {
+        page-break-before: avoid;
+    }
+    
+    /* Meta-only sections (title + short quote block) flow on the same page;
+       the script adds this class when the gap between two H1s holds only
+       blockquote/hr (fix 2026-08-20: avoids a near-blank first page). */
+    h1.no-break {
         page-break-before: avoid;
     }
     

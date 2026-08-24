@@ -67,7 +67,7 @@ If `output.pdf` is omitted, it uses the same basename as the input file.
 - Blue (#2563eb) table headers, alternating row colors
 - Dark background code blocks (#1e293b)
 - Blue left-border blockquotes with light background
-- Page breaks before each H1 (except the first)
+- Page breaks before each H1 (except the first) — **脚本层防空白页守卫（2026-08-20）**：若某 H1 与上一个 H1 之间只有 blockquote/hr（纯元信息，如「标题 + 用途说明块」的文档头部模式），脚本给该 H1 加 `class="no-break"` 不强制分页，避免「短标题+元信息头 → 强制分页 → 首页大范围空白」（与 2026-08-14 封面问题同根因）。两个 H1 之间有实质内容（段落/列表/表格/标题）时保留分页，多报告合并仍每份另起页。
 - h2/h3 headings: `break-after: avoid` (headings never orphaned at page bottom)
 - Tables: `table-layout: fixed` + **script auto-generates `<colgroup>`: content-driven floors + water-filling allocation of remaining width**（2026-08-16 v4 终版；weasyprint 对 `table-layout:auto` 支持弱，长文本列会把窄列压成单字竖排——「竖排文字」问题的标准解法即 fixed + 显式列宽 + `word-break: break-word`，详见 Troubleshooting）
 - Tables: `page-break-inside: auto` + `thead: table-header-group` (long tables break across pages with repeated headers; short tables stay on one page)
@@ -91,6 +91,7 @@ If `output.pdf` is omitted, it uses the same basename as the input file.
   4. **面向内部的「使用提示/说明」整节**（2026-08-17 Tom 确认）：凡标题为「内部使用提示」「对外使用提示」「注意事项」等、内容为写作者自用的节——对接人姓名核实、公文格式规范、表述红线、保密提示等——**整节删除，不进入对外版本与 PDF**；此类节中的政府/监管对接人具体姓名等敏感信息，底稿中也应脱敏（用职务简称替代），防止底稿被误转发。
   5. **头部背景/撰写缘起引用块**（2026-08-17 Tom 确认）：文档头部说明「应某部门/某人咨询而写」的背景块、名称辨析导语、撰写方式说明等内部上下文，对外版一并剥离——对外 PDF 直接以标题+分析时间行+正文开始；必要信息（如名称对应关系）应在正文以直接陈述存在。
   6. **名称辨析/勘误类条目**（2026-08-17 Tom 确认）：口径说明等节中的名称纠错条目（「X（音）=Y」的同音/拆字辨析、"两种写法并存"的考据、"回复 XX 方时建议用全称"等）属**勘误内容**——自己调研的底稿可以存在，对外 PDF 一律删除；正文中的品牌名/主体名直接用正确名称陈述，不出现辨析过程。同类一并清理：「建议 XX 时标注/建议以…为准」等写作者自用建议、「待核实」内部行动标记、「若 XX 方追问/向 XX 方说明」的对接场景引用（含小节标题）。
+  7. **内部口吻的标题/节名与工作备注**（2026-08-20 Tom 确认）：对外发送的 PDF ①标题正式——不含「盘点」「底稿」等内部工作语言；②正文对收件人说话——发给谁就写「需贵方提供」，不写「需向 XX 索取的清单」；③内部工作备注一律不进对外文档——对接人姓名、「（可作与 XX 沟通底稿）」类提示、内部材料编号（如 R 码，改用对方编号体系）、谈判/待 BD 类标注。内部版可保留全部工作信息，对外版按收件人重写。
   - **注意区分**：✅/⚠️/❌ 三态状态标注、口径时点标注（如「2022-10 披露」「泰乾方披露口径」）是**信息内容**，必须保留，不属于审查痕迹。
 - **最终 PDF 命名用原名（`原名.pdf`），不带「（汇报版）」等任何后缀**——后缀只用于中间 md 区分底稿，不进入最终交付物名称。转换命令：`md_to_pdf.py "原名（汇报版）.md" "原名.pdf"`。
 - 底稿 md 永远不动；中间 md 保留（便于后续改稿重转）；最终 PDF 就是唯一对外交付物。
@@ -111,6 +112,7 @@ If `output.pdf` is omitted, it uses the same basename as the input file.
 - **OSError: cannot load library 'libgobject-2.0-0'** → Script is running on WorkBuddy's isolated Python. Must use system Python (`/opt/homebrew/bin/python3`)
 - **PDF has garbled Chinese characters** → Check: (1) Noto Sans CJK SC fonts installed in `~/Library/Fonts/`; (2) fonts are embedded in the PDF (use `pikepdf` to verify FontFile3 in FontDescriptor → DescendantFonts); (3) CSS font-family includes `"Noto Sans CJK SC"` as first choice
 - **WeChat garbled text** → Ensure fonts are embedded (not just referenced). Noto Sans CJK SC's standardised CFF data has better cross-viewer compatibility than PingFang SC. If issues persist on Android WeChat, consider switching to a TrueType-format font (e.g., system STHeiti which is TrueType-based)
+- **首页大范围空白（文档自带「标题+用途说明块」头部时）**（2026-08-20 修复）→ 根因：CSS 对除首个外的每个 H1 强制 `page-break-before: always`，而文档头部「H1 标题 + 短引用块」本身没有实质内容，第二个 H1 被强制另起页 → 第 1 页只剩标题+几行元信息。脚本已加 `_fix_h1_breaks` 守卫：两个 H1 之间若只有 blockquote/hr（纯元信息），该 H1 加 `class="no-break"` 不分页；有实质内容（段落/列表/表格/标题）才分页。多报告合并、章节分页行为不受影响。
 - **Font download slow** → Use jsdelivr CDN URL (above), not raw GitHub. GitHub raw is very slow in China.
 - **表格窄列文字竖排（单字一行）/ 标签列过宽 / 短内容列大片空白**（2026-08-16 两轮修复，weasyprint 表格列宽完整经验）→
   根因：weasyprint 对 `table-layout:auto` 支持弱，列宽分配不可控。脚本内置三层修复，已验证的三类症状与解法：
@@ -122,4 +124,4 @@ If `output.pdf` is omitted, it uses the same basename as the input file.
   4. **"钳制后归一化"会侵蚀下限**：若先算目标比例、再对每列做下限/上限钳制、最后除以总和（>100%）归一——归一化除法会把已满足下限的列重新压到保底以下。症状：4字公司名仍换行成 3+1 字、长名单里最长的名字（如"中国动物保健品"6+1字）反而换行而短名不换。**正解=注水法（water-filling）分配**：每列先精确拿到下限，剩余空间按 `(目标比例-下限)` 的差值比例分配、逐列受上限约束，**分配完成后绝不再归一化**；若有残余空间（全部列触顶）才均分。
   5. **pt 换算必须留安全余量**：9pt 字号下 CJK 实际步进约 9.03pt，若按理论值取整（9.0pt）则 4 字名需要 36.1pt 而列宽恰好 36pt——差 0.1pt 就换行。脚本取 `CHAR_PT=9.6`（步进+余量）、`PAD_PT=16`（cell 内边距约9pt+边框1.5pt+余量）、`TABLE_PT=470`（A4 595pt − 2×2.2cm 边距）。
   6. **竖排检测器阈值**：单字符行扫描的行距阈值必须 **<18pt**（用 <16pt 会漏检恰好 16pt 行距的换行，产生假阴性）；且按 y 坐标聚合行时不能用 y 做 dict key（同一行不同列的线会互相覆盖），应收集全部线段再去重。验证方法：PyMuPDF 提取表格竖线x坐标测实际列宽 + 上述单字符行扫描。
-- **文档头部信息行规范（2026-08-16 Tom 确认）** → 分享版 PDF 的头部信息行固定为 `> 分析时间: YYYY-MM | 分析人: Tom Han`——**"分析时间"必须有、"分析人：Tom Han"并列署名；"更新模式"等内部流程字段不出现**（读者不关心谁更新的）。
+- **文档头部信息行规范（2026-08-16 确认；2026-08-19 署名更新）** → 分享版 PDF 的头部信息行固定为 `> 分析时间: YYYY-MM | 分析人: BioTom`（医药）或 `分析人: BitTom`（crypto/RWA）——**"分析时间"必须有、分析人并列署名；"更新模式"等内部流程字段不出现**（读者不关心谁更新的）。⚠️ 「Tom Han」署名 2026-08-19 起停用（Gemtrust/合规→Han Youyang；投研→BioTom/BitTom）。
