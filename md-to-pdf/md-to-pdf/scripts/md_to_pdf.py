@@ -17,6 +17,31 @@ def md_to_pdf(input_path, output_path=None):
     # Read markdown
     with open(input_path, 'r', encoding='utf-8') as f:
         md_content = f.read()
+
+    # Pre-process: rescue tables glued to a preceding text line.
+    # Python-Markdown's tables extension only recognises a table when it
+    # starts its own block; a header row attached to a paragraph above
+    # (e.g. "**牌照盘点**\n| 辖区 | 资质 |") renders as literal pipes.
+    # Fix 2026-08-25: insert a blank line before any header row whose
+    # previous line is non-blank and not itself a table row.
+    import re as _re
+
+    def _fix_table_blocks(text):
+        lines = text.split('\n')
+        out = []
+        sep_re = _re.compile(r'^\s*\|?[\s:\-|]+\|?\s*$')
+        row_re = _re.compile(r'^\s*\|')
+        for i, line in enumerate(lines):
+            if (row_re.match(line) and i + 1 < len(lines)
+                    and sep_re.match(lines[i + 1])
+                    and '-' in lines[i + 1]):
+                prev = out[-1] if out else ''
+                if prev.strip() and not row_re.match(prev):
+                    out.append('')
+            out.append(line)
+        return '\n'.join(out)
+
+    md_content = _fix_table_blocks(md_content)
     
     # Convert MD → HTML with extensions
     extensions = [
@@ -53,29 +78,60 @@ def md_to_pdf(input_path, output_path=None):
             ncols = max(len(_re.findall(r'<t[dh]', row)) for row in rows)
             if ncols == 0:
                 return table_html
-            # per-column max display width, capped at 14 so long-text columns
-            # cannot dominate; lower-clamped at 3 to avoid zero weights
-            disp = [1.0] * ncols
+            # Per-column stats across ALL cells:
+            #  - max_disp: widest single cell (cap CAP_DISP) -> drives the hard
+            #    floor
+            #  - sum_disp: total width of every cell (each capped at CAP_DISP)
+            #    -> drives the target proportion. Sum (not max) prevents a
+            #    single long outlier cell from inflating a short column to the
+            #    same weight as a genuinely long-text column.
+            #  CAP_DISP is HIGH (20, effectively no cap for normal cells) so the
+            #  sum reflects TRUE content volume: a content column whose every row
+            #  is a long paragraph accumulates a large sum and takes the bulk of
+            #  the width, while a short annotation column (few short entries,
+            #  e.g. "置信度": 高 / 中 / 低) stays narrow. A LOW cap (6) made the
+            #  sum saturate on the few long annotations in a short column and
+            #  still over-weighted it (v7 test: 26-39%). The cap only guards
+            #  against one absurdly long cell dominating the whole table.
+            #  WRAP_LINES=3: floor = widest_cell / 3 so the longest annotation
+            #  may wrap over ~3 lines instead of stretching the column.
+            #  (fix 2026-09-02 v7.1; ADDX/SDAX/DigiFT confidence columns now
+            #  render at ~23-28% vs content 62-67%.)
+            CAP_DISP = 20.0
+            WRAP_LINES = 3.0
+            max_disp = [1.0] * ncols
+            sum_disp = [0.0] * ncols
             for row in rows:
                 cells = _re.findall(r'<t[dh][^>]*>(.*?)</t[dh]>', row, _re.DOTALL)
                 for i, cell in enumerate(cells[:ncols]):
                     text = _re.sub(r'<[^>]+>', '', cell).strip()
-                    disp[i] = max(disp[i], min(disp_width(text), 14.0))
-            disp = [max(x, 3.0) for x in disp]
-            total = sum(disp)
-            target = [x * 100.0 / total for x in disp]
-            # content-driven floor: width to show the longest single line
-            # unwrapped (never more than an equal share); ceiling per column:
-            # what remains after every other column takes its floor
+                    d = min(disp_width(text), CAP_DISP)
+                    max_disp[i] = max(max_disp[i], d)
+                    sum_disp[i] += d
+            max_disp = [max(x, 1.0) for x in max_disp]
+            total = sum(sum_disp)
+            if total <= 0.0:
+                target = [100.0 / ncols] * ncols
+            else:
+                target = [s * 100.0 / total for s in sum_disp]
+            # content-driven floor: width to show the widest single cell
+            # across WRAP_LINES lines (never more than an equal share)
             equal = 100.0 / ncols
-            floors = [min((d * CHAR_PT + PAD_PT) / TABLE_PT * 100.0, equal)
-                      for d in disp]
-            caps = [100.0 - sum(f for j, f in enumerate(floors) if j != i)
-                    for i in range(ncols)]
+            floors = [min((d / WRAP_LINES * CHAR_PT + PAD_PT) / TABLE_PT * 100.0,
+                          equal)
+                      for d in max_disp]
+            # Ceiling = target share (fair allocation), NOT "100 minus other
+            # floors". The old cap derived from floors (which embed the PAD
+            # baseline) shrank a short column's cap to its own floor, so the
+            # residual width was eaten by the long-content column and short
+            # columns rendered far wider than their content justified
+            # (e.g. ADDX/SDAX "置信度" at 22-30% vs a few short entries).
+            # fix 2026-09-02 v7.
+            caps = target[:]
             # water-filling: satisfy every floor first, then distribute the
-            # remaining width proportional to (target - floor), capped.
-            # NEVER renormalise afterwards — dividing by the clamped sum
-            # erodes floors and re-breaks label columns (3+1 wraps).
+            # remaining width proportional to (target - floor), capped at
+            # target. NEVER renormalise afterwards — dividing by the clamped
+            # sum erodes floors and re-breaks label columns (3+1 wraps).
             alloc = floors[:]
             want = [max(0.0, t - f) for t, f in zip(target, floors)]
             rest = 100.0 - sum(alloc)

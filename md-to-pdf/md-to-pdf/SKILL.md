@@ -69,7 +69,13 @@ If `output.pdf` is omitted, it uses the same basename as the input file.
 - Blue left-border blockquotes with light background
 - Page breaks before each H1 (except the first) — **脚本层防空白页守卫（2026-08-20）**：若某 H1 与上一个 H1 之间只有 blockquote/hr（纯元信息，如「标题 + 用途说明块」的文档头部模式），脚本给该 H1 加 `class="no-break"` 不强制分页，避免「短标题+元信息头 → 强制分页 → 首页大范围空白」（与 2026-08-14 封面问题同根因）。两个 H1 之间有实质内容（段落/列表/表格/标题）时保留分页，多报告合并仍每份另起页。
 - h2/h3 headings: `break-after: avoid` (headings never orphaned at page bottom)
-- Tables: `table-layout: fixed` + **script auto-generates `<colgroup>`: content-driven floors + water-filling allocation of remaining width**（2026-08-16 v4 终版；weasyprint 对 `table-layout:auto` 支持弱，长文本列会把窄列压成单字竖排——「竖排文字」问题的标准解法即 fixed + 显式列宽 + `word-break: break-word`，详见 Troubleshooting）
+- Tables: `table-layout: fixed` + **script auto-generates `<colgroup>`: content-driven floors + water-filling allocation of remaining width**（2026-08-16 v4 → **2026-09-02 v7.1 权重算法**；weasyprint 对 `table-layout:auto` 支持弱，长文本列会把窄列压成单字竖排——「竖排文字」问题的标准解法即 fixed + 显式列宽 + `word-break: break-word`，详见 Troubleshooting）
+  - **v5→v7.1 演进（2026-09-02，Tom 三连反馈「列宽不对」）**：
+    - v5：权重从「每列 max」改「每列 sum」——解决不了 floor 下限问题；
+    - v6：floor 从「单行」改「折 3 行」——置信度列降到 21.8% 但仍被 floor 撑宽；
+    - **v7.1（终版）**：三个关键改动——①**CAP_DISP=20**（几乎不封顶），sum_disp 度量**真实内容总量**（内容列每行都长→sum 巨大→占 62-79%；置信度列少数短标注→sum 小→收窄到 10-28%）；②**caps = target**（公平分享，不再被「100-其他列 floor」吃掉）；③WRAP_LINES=3（floor=最长格/3，标注可折行）。
+    - **用户口径（Tom 09-02，永久）**：列宽按同列内容量分配；短标注列宁可折 2-3 行也不要撑宽整列。
+    - 实测：ADDX/SDAX 置信度 19%、DigiFT 27.6%（标注本身较长，合理）、HashKey 10%、KASE 19.7%；内容列 62-79%。
 - Tables: `page-break-inside: auto` + `thead: table-header-group` (long tables break across pages with repeated headers; short tables stay on one page)
 - `tr: page-break-inside: avoid` (individual rows never split across pages)
 
@@ -80,6 +86,8 @@ If `output.pdf` is omitted, it uses the same basename as the input file.
 - File contains Chinese text, tables, or code blocks
 
 ## 底稿版 vs 汇报版（双版工作流，2026-08-15 Tom 确认）
+
+**总原则（2026-08-26 Tom 确认，永久）：凡生成的 PDF 一律默认是给内部或外部读者看的成品文档**——不是给自己看的工作草稿。生成时即按受众适用相应标准：对外=剥离全部内部痕迹、标题正式、正文对收件人说话；对内（俞总/团队）=汇报版口径、无审计痕迹。不产出"草稿级 PDF"。文档本身干净（无审查痕迹/内部标注）时可按原名直接转换。
 
 调研报告的 **Markdown 底稿**与**对外汇报 PDF** 是两个产物，不得直接把底稿转 PDF 对外。**全流程：底稿 md → （汇报版）.md → 原名.pdf**，只此一条产物链，不生成"底稿 PDF"（底稿 md 足够用于内部追溯与后续迭代）：
 
@@ -94,8 +102,9 @@ If `output.pdf` is omitted, it uses the same basename as the input file.
   7. **内部口吻的标题/节名与工作备注**（2026-08-20 Tom 确认）：对外发送的 PDF ①标题正式——不含「盘点」「底稿」等内部工作语言；②正文对收件人说话——发给谁就写「需贵方提供」，不写「需向 XX 索取的清单」；③内部工作备注一律不进对外文档——对接人姓名、「（可作与 XX 沟通底稿）」类提示、内部材料编号（如 R 码，改用对方编号体系）、谈判/待 BD 类标注。内部版可保留全部工作信息，对外版按收件人重写。
   - **注意区分**：✅/⚠️/❌ 三态状态标注、口径时点标注（如「2022-10 披露」「泰乾方披露口径」）是**信息内容**，必须保留，不属于审查痕迹。
 - **最终 PDF 命名用原名（`原名.pdf`），不带「（汇报版）」等任何后缀**——后缀只用于中间 md 区分底稿，不进入最终交付物名称。转换命令：`md_to_pdf.py "原名（汇报版）.md" "原名.pdf"`。
-- 底稿 md 永远不动；中间 md 保留（便于后续改稿重转）；最终 PDF 就是唯一对外交付物。
-- 若用户只说「生成 PDF」且文档含修正记录/依据块，默认走双版工作流，并告知用户。
+- **PDF 生成成功后删除「（汇报版）」md（2026-08-31 Tom 确认，永久）**：同名 PDF 生成成功并核验通过（文件存在、页数/体积正常）后，**立即删除中间的 `原名（汇报版）.md`**，不留双份——交付层只留「底稿 md + 同名 PDF」。⚠️ **PDF 未生成或生成失败则不删**——此时汇报版 md 是唯一可读副本，先修复转换再删。
+- 底稿 md 永远不动；中间 md 在 PDF 成功后删除（见上条）；最终 PDF 就是唯一对外交付物。
+- 若用户只说「生成 PDF」且文档含修正记录/依据块，默认走双版工作流，并在转换成功后自动清理汇报版 md、告知用户。
 
 ## 分享场景规范（2026-08-16 Tom 确认，必读）
 
@@ -109,6 +118,7 @@ If `output.pdf` is omitted, it uses the same basename as the input file.
 ## Troubleshooting
 
 - **ModuleNotFoundError: weasyprint** → Run the `pip3 install --break-system-packages weasyprint markdown` command above
+- **表格渲染成纯文本（正文里出现裸露竖线 `|`、行黏连，表格线消失）**（2026-08-25 修复）→ 根因：Markdown 里表格首行（表头行）与上一行文字（如 `**牌照盘点**（口径）` 这类加粗引导语）之间**缺一个空行**——Python-Markdown 的 tables 扩展要求表格独立成块，紧跟段落的管道行会被当成段落正文。写作纪律：**任何表格之前必须空一行**（标题/加粗引导语/列表项与表格之间都要）。脚本已加 `_fix_table_blocks` 预处理守卫：检测到表头行黏连上一行时自动补空行，写错也能正确渲染；但源 md 仍应写对。验证方法：PyMuPDF 提取 PDF 全文 `count("|")`，只应剩头部信息行的分隔符竖线。
 - **OSError: cannot load library 'libgobject-2.0-0'** → Script is running on WorkBuddy's isolated Python. Must use system Python (`/opt/homebrew/bin/python3`)
 - **PDF has garbled Chinese characters** → Check: (1) Noto Sans CJK SC fonts installed in `~/Library/Fonts/`; (2) fonts are embedded in the PDF (use `pikepdf` to verify FontFile3 in FontDescriptor → DescendantFonts); (3) CSS font-family includes `"Noto Sans CJK SC"` as first choice
 - **WeChat garbled text** → Ensure fonts are embedded (not just referenced). Noto Sans CJK SC's standardised CFF data has better cross-viewer compatibility than PingFang SC. If issues persist on Android WeChat, consider switching to a TrueType-format font (e.g., system STHeiti which is TrueType-based)

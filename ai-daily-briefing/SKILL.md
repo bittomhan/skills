@@ -6,7 +6,6 @@ description: >
   skill should be used when the user asks for "AI日报", "AI简报", "daily AI
   briefing", "today's AI news", or when the daily automation runs.
 agent_created: true
-disable-model-invocation: true
 ---
 
 # AI Daily Briefing
